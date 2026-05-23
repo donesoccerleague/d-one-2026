@@ -28,6 +28,7 @@
         </form>
         <div class="form-group" style="margin-top: 16px;">
             <button type="button" id="toggleDebugBtn">Show Debug</button>
+            <button type="button" id="testConnectionBtn">Test Supabase Connection</button>
         </div>
         <pre id="debugPanel" style="display:none; background:#111; color:#8efc8a; padding:12px; border-radius:8px; max-height:260px; overflow:auto; white-space:pre-wrap;"></pre>
     </div>
@@ -42,6 +43,7 @@ const form = document.getElementById('loginForm');
 const messageBox = document.getElementById('loginMessage');
 const debugPanel = document.getElementById('debugPanel');
 const toggleDebugBtn = document.getElementById('toggleDebugBtn');
+const testConnectionBtn = document.getElementById('testConnectionBtn');
 
 function nowTime() {
     return new Date().toISOString();
@@ -65,6 +67,12 @@ function debugLog(label, details) {
 function showMessage(message) {
     messageBox.textContent = message;
     messageBox.style.display = 'block';
+}
+
+function showFetchHelp() {
+    showMessage(
+        'Cannot reach Supabase (Failed to fetch). Use Live Server/http://localhost (not file://), verify URL/key, and ensure your Supabase project is active.'
+    );
 }
 
 toggleDebugBtn.addEventListener('click', function () {
@@ -92,6 +100,42 @@ runStartupDebugCheck().catch((error) => {
         message: error.message,
         stack: error.stack
     });
+});
+
+testConnectionBtn.addEventListener('click', async function () {
+    debugLog('Manual connection test started', {
+        protocol: window.location.protocol,
+        online: navigator.onLine,
+        supabaseUrl: SUPABASE_URL
+    });
+
+    try {
+        const { error } = await client.rpc('validate_admin_login', {
+            p_email: 'connection-test@example.com',
+            p_password: 'invalid'
+        });
+
+        if (error && error.message === 'TypeError: Failed to fetch') {
+            debugLog('Manual connection test failed (network)', { error });
+            showFetchHelp();
+            return;
+        }
+
+        debugLog('Manual connection test completed', { error: error || null });
+        showMessage('Supabase connection is reachable.');
+    } catch (error) {
+        debugLog('Manual connection test exception', {
+            message: error.message,
+            stack: error.stack
+        });
+
+        if (String(error.message || '').toLowerCase().includes('failed to fetch')) {
+            showFetchHelp();
+            return;
+        }
+
+        showMessage('Connection test error: ' + (error.message || 'Unknown error'));
+    }
 });
 
 form.addEventListener('submit', async function (event) {
@@ -124,6 +168,10 @@ form.addEventListener('submit', async function (event) {
 
         if (error) {
             console.error('Supabase login check failed:', error);
+            if (String(error.message || '').toLowerCase().includes('failed to fetch')) {
+                showFetchHelp();
+                return;
+            }
             showMessage(
                 'Login service error: ' +
                 (error.message || 'Unknown error') +
@@ -155,6 +203,12 @@ form.addEventListener('submit', async function (event) {
             message: error.message,
             stack: error.stack
         });
+
+        if (String(error.message || '').toLowerCase().includes('failed to fetch')) {
+            showFetchHelp();
+            return;
+        }
+
         showMessage('An unexpected error occurred: ' + (error.message || 'Unknown error'));
     }
 });
