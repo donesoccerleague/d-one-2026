@@ -3,74 +3,31 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Admin Dashboard</title>
+    <title>Admin Fixtures</title>
+    <link rel="stylesheet" href="fixture.css">
     <link rel="stylesheet" href="admin.css">
 </head>
 <body>
     <header>
-        <h1>D-One Soccer League Admin Dashboard</h1>
+        <h1>D-One Soccer League 2025 Fixtures (Admin)</h1>
+        <img src="d-one-logo.jpg" alt="League logo">
         <div class="admin-top-actions">
             <button type="button" onclick="location.href='homepage.html'">Public Site</button>
+            <button type="button" onclick="location.href='adminGroups.html'">Groups Page</button>
             <button type="button" id="logoutBtn">Logout</button>
         </div>
     </header>
 
-    <main class="admin-dashboard">
+    <main>
         <p id="statusMessage" class="status-message" style="display:none;"></p>
 
         <section class="admin-card">
-            <h2>Add Team</h2>
-            <form id="addTeamForm">
-                <label for="teamName">Team Name</label>
-                <input type="text" id="teamName" required>
-
-                <label for="teamGroup">Group</label>
-                <select id="teamGroup" required>
-                    <option value="A">A</option>
-                    <option value="B">B</option>
-                </select>
-
-                <button type="submit">Add Team</button>
-            </form>
+            <h2 class="admin-section-title">Master Schedule <button type="button" id="toggleFixtureEditor">Edit Fixtures</button></h2>
+            <div id="fixturesByDate" class="fixtures-list"></div>
         </section>
 
-        <section class="admin-card">
-            <h2>Update Team Group</h2>
-            <form id="updateTeamGroupForm">
-                <label for="teamSelect">Select Team</label>
-                <select id="teamSelect" required></select>
-
-                <label for="newGroup">New Group</label>
-                <select id="newGroup" required>
-                    <option value="A">A</option>
-                    <option value="B">B</option>
-                </select>
-
-                <button type="submit">Update Group</button>
-            </form>
-        </section>
-
-        <section class="admin-card">
-            <h2>Add Fixture</h2>
-            <form id="addFixtureForm">
-                <label for="addMatchDate">Match Date</label>
-                <input type="date" id="addMatchDate" required>
-
-                <label for="addMatchTime">Match Time</label>
-                <input type="time" id="addMatchTime" required>
-
-                <label for="addHomeTeam">Home Team</label>
-                <select id="addHomeTeam" required></select>
-
-                <label for="addAwayTeam">Away Team</label>
-                <select id="addAwayTeam" required></select>
-
-                <button type="submit">Add Fixture</button>
-            </form>
-        </section>
-
-        <section class="admin-card">
-            <h2>Update Fixture</h2>
+        <section class="admin-card" id="fixtureEditor" style="display:none;">
+            <h2>Fixture Editor</h2>
             <form id="updateFixtureForm">
                 <label for="fixtureSelect">Select Fixture</label>
                 <select id="fixtureSelect" required></select>
@@ -95,6 +52,40 @@
 
                 <button type="submit">Save Fixture Changes</button>
             </form>
+
+            <hr style="margin: 14px 0; border-color: #333;">
+
+            <form id="addFixtureForm">
+                <label for="addMatchDate">Match Date</label>
+                <input type="date" id="addMatchDate" required>
+
+                <label for="addMatchTime">Match Time</label>
+                <input type="time" id="addMatchTime" required>
+
+                <label for="addHomeTeam">Home Team</label>
+                <select id="addHomeTeam" required></select>
+
+                <label for="addAwayTeam">Away Team</label>
+                <select id="addAwayTeam" required></select>
+
+                <button type="submit">Add Fixture</button>
+            </form>
+
+            <hr style="margin: 14px 0; border-color: #333;">
+
+            <form id="addTeamInlineForm">
+                <h3 style="margin-bottom:8px; color:#ffd700;">Add New Team (if missing)</h3>
+                <label for="inlineTeamName">Team Name</label>
+                <input type="text" id="inlineTeamName" required>
+
+                <label for="inlineTeamGroup">Group</label>
+                <select id="inlineTeamGroup" required>
+                    <option value="A">A</option>
+                    <option value="B">B</option>
+                </select>
+
+                <button type="submit">Add Team</button>
+            </form>
         </section>
     </main>
 
@@ -107,12 +98,14 @@
     const adminSessionToken = localStorage.getItem('admin_session_token');
 
     const statusMessage = document.getElementById('statusMessage');
-    const teamSelect = document.getElementById('teamSelect');
+    const fixturesByDate = document.getElementById('fixturesByDate');
     const addHomeTeam = document.getElementById('addHomeTeam');
     const addAwayTeam = document.getElementById('addAwayTeam');
     const editHomeTeam = document.getElementById('editHomeTeam');
     const editAwayTeam = document.getElementById('editAwayTeam');
     const fixtureSelect = document.getElementById('fixtureSelect');
+    const fixtureEditor = document.getElementById('fixtureEditor');
+    const toggleFixtureEditor = document.getElementById('toggleFixtureEditor');
 
     let teams = [];
     let fixtures = [];
@@ -154,11 +147,43 @@
     }
 
     function refreshTeamSelectors() {
-        buildTeamOptions(teamSelect);
         buildTeamOptions(addHomeTeam);
         buildTeamOptions(addAwayTeam);
         buildTeamOptions(editHomeTeam);
         buildTeamOptions(editAwayTeam);
+    }
+
+    function renderFixturesUserView() {
+        fixturesByDate.innerHTML = '';
+
+        const grouped = {};
+        fixtures.forEach((fixture) => {
+            const key = fixture.match_date;
+            if (!grouped[key]) {
+                grouped[key] = [];
+            }
+            grouped[key].push(fixture);
+        });
+
+        const orderedDates = Object.keys(grouped).sort();
+        if (orderedDates.length === 0) {
+            fixturesByDate.innerHTML = '<p>No fixtures yet.</p>';
+            return;
+        }
+
+        orderedDates.forEach((date) => {
+            const title = document.createElement('h3');
+            title.textContent = date;
+            fixturesByDate.appendChild(title);
+
+            const list = document.createElement('ul');
+            grouped[date].forEach((fixture) => {
+                const item = document.createElement('li');
+                item.innerHTML = `${(fixture.match_time || '').slice(0, 5)} - ${fixture.home_team}: ${fixture.home_score} vs ${fixture.away_team}: ${fixture.away_score}`;
+                list.appendChild(item);
+            });
+            fixturesByDate.appendChild(list);
+        });
     }
 
     function refreshFixtureSelector() {
@@ -173,6 +198,8 @@
         if (fixtures.length > 0) {
             populateFixtureForm(fixtures[0].id);
         }
+
+        renderFixturesUserView();
     }
 
     function populateFixtureForm(fixtureId) {
@@ -230,68 +257,10 @@
         }
     }
 
-    document.getElementById('addTeamForm').addEventListener('submit', async function (event) {
-        event.preventDefault();
-
-        const teamName = document.getElementById('teamName').value.trim();
-        const teamGroup = document.getElementById('teamGroup').value;
-
-        try {
-            const { data, error } = await client.rpc('admin_add_team', {
-                p_session_token: adminSessionToken,
-                p_team_name: teamName,
-                p_team_group: teamGroup
-            });
-
-            if (error) {
-                throw error;
-            }
-
-            const result = Array.isArray(data) ? data[0] : data;
-            if (!result || result.ok !== true) {
-                showStatus(result ? result.message : 'TEAM_ADD_FAILED', true);
-                return;
-            }
-
-            showStatus('Team added.', false);
-            document.getElementById('addTeamForm').reset();
-            await loadTeams();
-        } catch (error) {
-            console.error('Add team failed:', error);
-            showStatus('Could not add team.', true);
-        }
-    });
-
-    document.getElementById('updateTeamGroupForm').addEventListener('submit', async function (event) {
-        event.preventDefault();
-
-        const selectedTeamId = Number(teamSelect.value);
-        const newGroup = document.getElementById('newGroup').value;
-
-        try {
-            const { data, error } = await client.rpc('admin_update_team_group', {
-                p_session_token: adminSessionToken,
-                p_team_id: selectedTeamId,
-                p_team_group: newGroup
-            });
-
-            if (error) {
-                throw error;
-            }
-
-            const result = Array.isArray(data) ? data[0] : data;
-            if (!result || result.ok !== true) {
-                showStatus(result ? result.message : 'TEAM_GROUP_UPDATE_FAILED', true);
-                return;
-            }
-
-            showStatus('Team group updated.', false);
-            await loadTeams();
-            await loadFixtures();
-        } catch (error) {
-            console.error('Update team group failed:', error);
-            showStatus('Could not update team group.', true);
-        }
+    toggleFixtureEditor.addEventListener('click', function () {
+        const isClosed = fixtureEditor.style.display === 'none';
+        fixtureEditor.style.display = isClosed ? 'block' : 'none';
+        toggleFixtureEditor.textContent = isClosed ? 'Hide Editor' : 'Edit Fixtures';
     });
 
     document.getElementById('addFixtureForm').addEventListener('submit', async function (event) {
@@ -332,6 +301,38 @@
         } catch (error) {
             console.error('Add fixture failed:', error);
             showStatus('Could not add fixture.', true);
+        }
+    });
+
+    document.getElementById('addTeamInlineForm').addEventListener('submit', async function (event) {
+        event.preventDefault();
+
+        const teamName = document.getElementById('inlineTeamName').value.trim();
+        const teamGroup = document.getElementById('inlineTeamGroup').value;
+
+        try {
+            const { data, error } = await client.rpc('admin_add_team', {
+                p_session_token: adminSessionToken,
+                p_team_name: teamName,
+                p_team_group: teamGroup
+            });
+
+            if (error) {
+                throw error;
+            }
+
+            const result = Array.isArray(data) ? data[0] : data;
+            if (!result || result.ok !== true) {
+                showStatus(result ? result.message : 'TEAM_ADD_FAILED', true);
+                return;
+            }
+
+            showStatus('Team added. You can now select it in fixture forms.', false);
+            document.getElementById('addTeamInlineForm').reset();
+            await loadTeams();
+        } catch (error) {
+            console.error('Inline add team failed:', error);
+            showStatus('Could not add team.', true);
         }
     });
 
