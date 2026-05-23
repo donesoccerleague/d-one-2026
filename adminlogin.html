@@ -35,7 +35,7 @@
 </body>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
-const SUPABASE_URL = 'https://dpwwjhnjfyaaraawvapsa.supabase.co';
+const SUPABASE_URL = 'https://dpwwjhjnfyaraawvapsa.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_NkvBXTR9sHUT18tLnrXygQ_tk6KIlFj';
 
 const client = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
@@ -71,8 +71,43 @@ function showMessage(message) {
 
 function showFetchHelp() {
     showMessage(
-        'Cannot reach Supabase (Failed to fetch). Use Live Server/http://localhost (not file://), verify URL/key, and ensure your Supabase project is active.'
+        'Cannot reach Supabase (Failed to fetch). If using GitHub, use a deployed GitHub Pages URL (not github.com repo file view), verify Project URL/key, check project is active, and disable ad-block/privacy extensions.'
     );
+}
+
+async function debugNetworkProbe() {
+    const probeUrl = SUPABASE_URL + '/rest/v1/';
+    debugLog('Network probe started', {
+        probeUrl,
+        pageUrl: window.location.href,
+        origin: window.location.origin,
+        protocol: window.location.protocol,
+        userAgent: navigator.userAgent
+    });
+
+    try {
+        const response = await fetch(probeUrl, {
+            method: 'GET',
+            headers: {
+                apikey: SUPABASE_ANON_KEY,
+                Authorization: 'Bearer ' + SUPABASE_ANON_KEY
+            }
+        });
+
+        debugLog('Network probe response', {
+            ok: response.ok,
+            status: response.status,
+            statusText: response.statusText,
+            url: response.url
+        });
+    } catch (error) {
+        debugLog('Network probe failed', {
+            message: error.message,
+            name: error.name,
+            stack: error.stack,
+            cause: error.cause ? String(error.cause) : null
+        });
+    }
 }
 
 toggleDebugBtn.addEventListener('click', function () {
@@ -102,6 +137,8 @@ runStartupDebugCheck().catch((error) => {
     });
 });
 
+debugNetworkProbe();
+
 testConnectionBtn.addEventListener('click', async function () {
     debugLog('Manual connection test started', {
         protocol: window.location.protocol,
@@ -126,6 +163,8 @@ testConnectionBtn.addEventListener('click', async function () {
     } catch (error) {
         debugLog('Manual connection test exception', {
             message: error.message,
+            name: error.name,
+            cause: error.cause ? String(error.cause) : null,
             stack: error.stack
         });
 
@@ -201,6 +240,8 @@ form.addEventListener('submit', async function (event) {
         console.error('Unexpected login error:', error);
         debugLog('Unexpected exception during login', {
             message: error.message,
+            name: error.name,
+            cause: error.cause ? String(error.cause) : null,
             stack: error.stack
         });
 
