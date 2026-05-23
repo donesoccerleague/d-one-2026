@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Login</title>
+    <link rel="stylesheet" href="admin.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Admin Login</h1>
+        <form id="loginForm">
+            <div class="form-group">
+                <label for="email">Email:</label>
+                <input type="email" id="email" name="email" required>
+            </div>
+            <div class="form-group">
+                <label for="password">Password:</label>
+                <input type="password" id="password" name="password" required>
+            </div>
+            <div class="submit">
+                <button type="submit">Login</button>
+            </div>
+            <div class="form-group" id="loginMessage" style="color: #c62828; display: none;"></div>
+            <div class="form-group">
+                <p>Don't have an account? <a href="mailto:d.one.soccer@gmail.com">Contact your employer</a></p>
+            </div>
+        </form>
+    </div>
+</body>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+const SUPABASE_URL = 'https://dpwwjhnjfyaaraawvapsa.supabase.co';
+const SUPABASE_ANON_KEY = 'sb_publishable_NkvBXTR9sHUT18tLnrXygQ_tk6KIlFj';
+
+const client = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const form = document.getElementById('loginForm');
+const messageBox = document.getElementById('loginMessage');
+
+function showMessage(message) {
+    messageBox.textContent = message;
+    messageBox.style.display = 'block';
+}
+
+form.addEventListener('submit', async function (event) {
+    event.preventDefault();
+    messageBox.style.display = 'none';
+
+    const email = document.getElementById('email').value.trim().toLowerCase();
+    const password = document.getElementById('password').value;
+
+    try {
+        const { data, error } = await client.rpc('validate_admin_login', {
+            p_email: email,
+            p_password: password
+        });
+
+        if (error) {
+            console.error('Supabase login check failed:', error);
+            showMessage('Login service error. Please try again.');
+            return;
+        }
+
+        const result = Array.isArray(data) ? data[0] : data;
+
+        if (!result || result.ok !== true) {
+            showMessage('Invalid email or password.');
+            return;
+        }
+
+        localStorage.setItem('admin_session_token', result.session_token || '');
+        localStorage.setItem('admin_id', String(result.admin_id || ''));
+
+        window.location.href = 'adminHomePage.html';
+    } catch (error) {
+        console.error('Unexpected login error:', error);
+        showMessage('An unexpected error occurred. Please try again later.');
+    }
+});
+</script>
+</html>
