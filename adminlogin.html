@@ -26,6 +26,10 @@
                 <p>Don't have an account? <a href="mailto:d.one.soccer@gmail.com">Contact your employer</a></p>
             </div>
         </form>
+        <div class="form-group" style="margin-top: 16px;">
+            <button type="button" id="toggleDebugBtn">Show Debug</button>
+        </div>
+        <pre id="debugPanel" style="display:none; background:#111; color:#8efc8a; padding:12px; border-radius:8px; max-height:260px; overflow:auto; white-space:pre-wrap;"></pre>
     </div>
 </body>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -36,11 +40,59 @@ const SUPABASE_ANON_KEY = 'sb_publishable_NkvBXTR9sHUT18tLnrXygQ_tk6KIlFj';
 const client = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 const form = document.getElementById('loginForm');
 const messageBox = document.getElementById('loginMessage');
+const debugPanel = document.getElementById('debugPanel');
+const toggleDebugBtn = document.getElementById('toggleDebugBtn');
+
+function nowTime() {
+    return new Date().toISOString();
+}
+
+function safeJson(value) {
+    try {
+        return JSON.stringify(value, null, 2);
+    } catch (_error) {
+        return String(value);
+    }
+}
+
+function debugLog(label, details) {
+    const line = `[${nowTime()}] ${label}${details ? `\n${safeJson(details)}` : ''}\n\n`;
+    debugPanel.textContent += line;
+    debugPanel.scrollTop = debugPanel.scrollHeight;
+    console.log(label, details || '');
+}
 
 function showMessage(message) {
     messageBox.textContent = message;
     messageBox.style.display = 'block';
 }
+
+toggleDebugBtn.addEventListener('click', function () {
+    const shouldShow = debugPanel.style.display === 'none';
+    debugPanel.style.display = shouldShow ? 'block' : 'none';
+    toggleDebugBtn.textContent = shouldShow ? 'Hide Debug' : 'Show Debug';
+});
+
+async function runStartupDebugCheck() {
+    debugLog('Startup check: Supabase client initialized', {
+        supabaseUrl: SUPABASE_URL,
+        keyPrefix: SUPABASE_ANON_KEY.slice(0, 20) + '...'
+    });
+
+    const { data, error } = await client.rpc('validate_admin_login', {
+        p_email: 'debug-check@example.com',
+        p_password: 'invalid'
+    });
+
+    debugLog('Startup check: validate_admin_login RPC response', { data, error });
+}
+
+runStartupDebugCheck().catch((error) => {
+    debugLog('Startup check failed', {
+        message: error.message,
+        stack: error.stack
+    });
+});
 
 form.addEventListener('submit', async function (event) {
     event.preventDefault();
@@ -49,19 +101,39 @@ form.addEventListener('submit', async function (event) {
     const email = document.getElementById('email').value.trim().toLowerCase();
     const password = document.getElementById('password').value;
 
+    debugLog('Login submit started', {
+        email,
+        passwordLength: password.length
+    });
+
     try {
+        debugLog('Calling RPC validate_admin_login', {
+            functionName: 'validate_admin_login',
+            params: {
+                p_email: email,
+                p_password: '[hidden]'
+            }
+        });
+
         const { data, error } = await client.rpc('validate_admin_login', {
             p_email: email,
             p_password: password
         });
 
+        debugLog('RPC response received', { data, error });
+
         if (error) {
             console.error('Supabase login check failed:', error);
-            showMessage('Login service error. Please try again.');
+            showMessage(
+                'Login service error: ' +
+                (error.message || 'Unknown error') +
+                (error.code ? ` | code: ${error.code}` : '')
+            );
             return;
         }
 
         const result = Array.isArray(data) ? data[0] : data;
+        debugLog('Parsed RPC result', { result });
 
         if (!result || result.ok !== true) {
             showMessage('Invalid email or password.');
@@ -71,10 +143,19 @@ form.addEventListener('submit', async function (event) {
         localStorage.setItem('admin_session_token', result.session_token || '');
         localStorage.setItem('admin_id', String(result.admin_id || ''));
 
+        debugLog('Login success, session stored', {
+            adminId: result.admin_id,
+            hasSessionToken: Boolean(result.session_token)
+        });
+
         window.location.href = 'adminHomePage.html';
     } catch (error) {
         console.error('Unexpected login error:', error);
-        showMessage('An unexpected error occurred. Please try again later.');
+        debugLog('Unexpected exception during login', {
+            message: error.message,
+            stack: error.stack
+        });
+        showMessage('An unexpected error occurred: ' + (error.message || 'Unknown error'));
     }
 });
 </script>
