@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Groups</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="admin.css">
+</head>
+<body>
+    <header>
+        <h1>D-One Soccer League Groups (Admin)</h1>
+        <div class="admin-top-actions">
+            <button type="button" onclick="location.href='adminHomePage.html'">Fixtures Page</button>
+            <button type="button" onclick="location.href='homepage.html'">Public Site</button>
+            <button type="button" id="logoutBtn">Logout</button>
+        </div>
+    </header>
+
+    <main class="admin-dashboard">
+        <p id="statusMessage" class="status-message" style="display:none;"></p>
+
+        <section class="admin-card">
+            <h2 class="admin-section-title">Group A <button type="button" id="toggleGroupEditor">Edit Groups</button></h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Team</th>
+                        <th>Group</th>
+                    </tr>
+                </thead>
+                <tbody id="groupA"></tbody>
+            </table>
+        </section>
+
+        <section class="admin-card">
+            <h2>Group B</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Team</th>
+                        <th>Group</th>
+                    </tr>
+                </thead>
+                <tbody id="groupB"></tbody>
+            </table>
+        </section>
+
+        <section class="admin-card" id="groupEditor" style="display:none;">
+            <h2>Group Editor</h2>
+            <form id="updateTeamGroupForm">
+                <label for="teamSelect">Select Team</label>
+                <select id="teamSelect" required></select>
+
+                <label for="newGroup">New Group</label>
+                <select id="newGroup" required>
+                    <option value="A">A</option>
+                    <option value="B">B</option>
+                </select>
+
+                <button type="submit">Update Group</button>
+            </form>
+
+            <hr style="margin: 14px 0; border-color: #333;">
+
+            <form id="addTeamForm">
+                <label for="teamName">Team Name</label>
+                <input type="text" id="teamName" required>
+
+                <label for="teamGroup">Group</label>
+                <select id="teamGroup" required>
+                    <option value="A">A</option>
+                    <option value="B">B</option>
+                </select>
+
+                <button type="submit">Add Team</button>
+            </form>
+        </section>
+    </main>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script>
+    const SUPABASE_URL = 'https://dpwwjhjnfyaraawvapsa.supabase.co';
+    const SUPABASE_ANON_KEY = 'sb_publishable_NkvBXTR9sHUT18tLnrXygQ_tk6KIlFj';
+
+    const client = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    const adminSessionToken = localStorage.getItem('admin_session_token');
+
+    const statusMessage = document.getElementById('statusMessage');
+    const teamSelect = document.getElementById('teamSelect');
+    const groupEditor = document.getElementById('groupEditor');
+    const toggleGroupEditor = document.getElementById('toggleGroupEditor');
+
+    let teams = [];
+
+    function showStatus(message, isError) {
+        statusMessage.textContent = message;
+        statusMessage.style.display = 'block';
+        statusMessage.style.background = isError ? '#6b1b1b' : '#1f5f33';
+        statusMessage.style.color = '#fff';
+    }
+
+    function requireLogin() {
+        if (!adminSessionToken) {
+            window.location.href = 'adminlogin.html';
+            return false;
+        }
+        return true;
+    }
+
+    function refreshTables() {
+        const groupA = document.getElementById('groupA');
+        const groupB = document.getElementById('groupB');
+        groupA.innerHTML = '';
+        groupB.innerHTML = '';
+
+        teams.forEach((team) => {
+            const row = document.createElement('tr');
+            row.innerHTML = `<td>${team.team_name}</td><td>${team.team_group}</td>`;
+            if (team.team_group === 'A') {
+                groupA.appendChild(row);
+            } else {
+                groupB.appendChild(row);
+            }
+        });
+    }
+
+    function refreshTeamSelect() {
+        teamSelect.innerHTML = '';
+        teams.forEach((team) => {
+            const option = document.createElement('option');
+            option.value = String(team.id);
+            option.textContent = `${team.team_name} (Group ${team.team_group})`;
+            teamSelect.appendChild(option);
+        });
+    }
+
+    async function loadTeams() {
+        const { data, error } = await client.rpc('admin_list_teams', {
+            p_session_token: adminSessionToken
+        });
+
+        if (error) {
+            throw error;
+        }
+
+        teams = Array.isArray(data) ? data : [];
+        refreshTables();
+        refreshTeamSelect();
+    }
+
+    toggleGroupEditor.addEventListener('click', function () {
+        const isClosed = groupEditor.style.display === 'none';
+        groupEditor.style.display = isClosed ? 'block' : 'none';
+        toggleGroupEditor.textContent = isClosed ? 'Hide Editor' : 'Edit Groups';
+    });
+
+    document.getElementById('addTeamForm').addEventListener('submit', async function (event) {
+        event.preventDefault();
+
+        const teamName = document.getElementById('teamName').value.trim();
+        const teamGroup = document.getElementById('teamGroup').value;
+
+        try {
+            const { data, error } = await client.rpc('admin_add_team', {
+                p_session_token: adminSessionToken,
+                p_team_name: teamName,
+                p_team_group: teamGroup
+            });
+
+            if (error) {
+                throw error;
+            }
+
+            const result = Array.isArray(data) ? data[0] : data;
+            if (!result || result.ok !== true) {
+                showStatus(result ? result.message : 'TEAM_ADD_FAILED', true);
+                return;
+            }
+
+            showStatus('Team added.', false);
+            document.getElementById('addTeamForm').reset();
+            await loadTeams();
+        } catch (error) {
+            console.error('Add team failed:', error);
+            showStatus('Could not add team.', true);
+        }
+    });
+
+    document.getElementById('updateTeamGroupForm').addEventListener('submit', async function (event) {
+        event.preventDefault();
+
+        const selectedTeamId = Number(teamSelect.value);
+        const newGroup = document.getElementById('newGroup').value;
+
+        try {
+            const { data, error } = await client.rpc('admin_update_team_group', {
+                p_session_token: adminSessionToken,
+                p_team_id: selectedTeamId,
+                p_team_group: newGroup
+            });
+
+            if (error) {
+                throw error;
+            }
+
+            const result = Array.isArray(data) ? data[0] : data;
+            if (!result || result.ok !== true) {
+                showStatus(result ? result.message : 'TEAM_GROUP_UPDATE_FAILED', true);
+                return;
+            }
+
+            showStatus('Team group updated.', false);
+            await loadTeams();
+        } catch (error) {
+            console.error('Update team group failed:', error);
+            showStatus('Could not update team group.', true);
+        }
+    });
+
+    document.getElementById('logoutBtn').addEventListener('click', async function () {
+        try {
+            await client.rpc('admin_logout', { p_session_token: adminSessionToken });
+        } catch (error) {
+            console.error('Logout warning:', error);
+        }
+
+        localStorage.removeItem('admin_session_token');
+        localStorage.removeItem('admin_id');
+        window.location.href = 'adminlogin.html';
+    });
+
+    async function initializePage() {
+        if (!requireLogin()) {
+            return;
+        }
+
+        try {
+            await loadTeams();
+        } catch (error) {
+            console.error('Groups page init failed:', error);
+            showStatus('Could not load group data. Your session may be expired.', true);
+        }
+    }
+
+    initializePage();
+    </script>
+</body>
+</html>
