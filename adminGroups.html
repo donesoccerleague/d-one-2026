@@ -6,6 +6,45 @@
     <title>Admin Groups</title>
     <link rel="stylesheet" href="styles.css">
     <link rel="stylesheet" href="admin.css">
+    <style>
+      .edit-table input, .edit-table select {
+        width: 100%;
+        min-width: 56px;
+        padding: 6px;
+        border: 1px solid #444;
+        border-radius: 5px;
+        background: #111;
+        color: #fff;
+      }
+      .edit-table button {
+        padding: 6px 10px;
+        border: none;
+        border-radius: 5px;
+        background: #e7bb45;
+        color: #000;
+        font-weight: 700;
+        cursor: pointer;
+      }
+      .add-row {
+        margin-top: 14px;
+        padding: 12px;
+        border: 1px solid #333;
+        border-radius: 8px;
+        background: #151922;
+      }
+      .add-row-grid {
+        display: grid;
+        grid-template-columns: 2fr repeat(5, 1fr);
+        gap: 8px;
+      }
+      .add-row-grid input,
+      .add-row-grid select {
+        width: 100%;
+      }
+      @media (max-width: 900px) {
+        .add-row-grid { grid-template-columns: 1fr 1fr; }
+      }
+    </style>
 </head>
 <body>
     <header>
@@ -17,15 +56,16 @@
         </div>
     </header>
 
-    <main class="admin-dashboard">
+    <main>
         <p id="statusMessage" class="status-message" style="display:none;"></p>
 
-        <section class="admin-card">
-            <h2 class="admin-section-title">Group A <button type="button" id="toggleGroupEditor">Show Editor</button></h2>
-            <p style="margin-bottom:8px;color:#d6dde9;">Sorted automatically by highest points, then best goal difference.</p>
-            <table>
+        <section>
+            <h2>Group A</h2>
+            <p style="margin-bottom:8px;color:#d6dde9;">Editable grid. Sorted automatically by points (high to low), then goal difference.</p>
+            <table class="edit-table">
                 <thead>
                     <tr>
+                        <th>Pos</th>
                         <th>Team</th>
                         <th>Group</th>
                         <th>Played</th>
@@ -33,19 +73,21 @@
                         <th>GC</th>
                         <th>GD</th>
                         <th>Points</th>
-                        <th>Actions</th>
+                        <th>Submit</th>
+                        <th>Remove</th>
                     </tr>
                 </thead>
                 <tbody id="groupA"></tbody>
             </table>
         </section>
 
-        <section class="admin-card">
+        <section>
             <h2>Group B</h2>
-            <p style="margin-bottom:8px;color:#d6dde9;">Sorted automatically by highest points, then best goal difference.</p>
-            <table>
+            <p style="margin-bottom:8px;color:#d6dde9;">Editable grid. Sorted automatically by points (high to low), then goal difference.</p>
+            <table class="edit-table">
                 <thead>
                     <tr>
+                        <th>Pos</th>
                         <th>Team</th>
                         <th>Group</th>
                         <th>Played</th>
@@ -53,38 +95,31 @@
                         <th>GC</th>
                         <th>GD</th>
                         <th>Points</th>
-                        <th>Actions</th>
+                        <th>Submit</th>
+                        <th>Remove</th>
                     </tr>
                 </thead>
                 <tbody id="groupB"></tbody>
             </table>
         </section>
 
-        <section class="admin-card" id="groupEditor" style="display:none;">
-            <h2>Group Editor (Spreadsheet Style)</h2>
+        <section class="add-row">
+            <h2>Add Team</h2>
             <form id="addTeamForm">
-                <label for="teamName">Team Name</label>
-                <input type="text" id="teamName" required>
-
-                <label for="teamGroup">Group</label>
-                <select id="teamGroup" required>
-                    <option value="A">A</option>
-                    <option value="B">B</option>
-                </select>
-
-                <label for="teamPlayed">Played</label>
-                <input type="number" id="teamPlayed" min="0" value="0" required>
-
-                <label for="teamGoalsScored">Goals Scored</label>
-                <input type="number" id="teamGoalsScored" min="0" value="0" required>
-
-                <label for="teamGoalsConceded">Goals Conceded</label>
-                <input type="number" id="teamGoalsConceded" min="0" value="0" required>
-
-                <label for="teamPoints">Points</label>
-                <input type="number" id="teamPoints" min="0" value="0" required>
-
-                <button type="submit">Add Team</button>
+                <div class="add-row-grid">
+                    <input type="text" id="teamName" placeholder="Team Name" required>
+                    <select id="teamGroup" required>
+                        <option value="A">Group A</option>
+                        <option value="B">Group B</option>
+                    </select>
+                    <input type="number" id="teamPlayed" min="0" value="0" placeholder="Played" required>
+                    <input type="number" id="teamGoalsScored" min="0" value="0" placeholder="Goals Scored" required>
+                    <input type="number" id="teamGoalsConceded" min="0" value="0" placeholder="Goals Conceded" required>
+                    <input type="number" id="teamPoints" min="0" value="0" placeholder="Points" required>
+                </div>
+                <div style="margin-top:10px; text-align:center;">
+                    <button type="submit">Add Team</button>
+                </div>
             </form>
         </section>
     </main>
@@ -98,8 +133,6 @@
     const adminSessionToken = localStorage.getItem('admin_session_token');
 
     const statusMessage = document.getElementById('statusMessage');
-    const groupEditor = document.getElementById('groupEditor');
-    const toggleGroupEditor = document.getElementById('toggleGroupEditor');
 
     let teams = [];
 
@@ -118,64 +151,67 @@
         return true;
     }
 
+    function getRowValue(teamId, field) {
+        const element = document.querySelector(`[data-field="${field}"][data-team-id="${teamId}"]`);
+        return element ? element.value : null;
+    }
+
+    function sortedTeamsByGroup(source, group) {
+        return source
+            .filter((t) => t.team_group === group)
+            .sort((a, b) => {
+                const pointDiff = Number(b.points || 0) - Number(a.points || 0);
+                if (pointDiff !== 0) return pointDiff;
+                const gdA = Number(a.goals_scored || 0) - Number(a.goals_conceded || 0);
+                const gdB = Number(b.goals_scored || 0) - Number(b.goals_conceded || 0);
+                if (gdB !== gdA) return gdB - gdA;
+                return String(a.team_name).localeCompare(String(b.team_name));
+            });
+    }
+
+    function buildRow(team, position) {
+        const gd = Number(team.goals_scored || 0) - Number(team.goals_conceded || 0);
+        const row = document.createElement('tr');
+        row.innerHTML = `
+            <td>${position}</td>
+            <td><input type="text" value="${team.team_name}" data-field="team_name" data-team-id="${team.id}"></td>
+            <td>
+                <select data-field="team_group" data-team-id="${team.id}">
+                    <option value="A" ${team.team_group === 'A' ? 'selected' : ''}>A</option>
+                    <option value="B" ${team.team_group === 'B' ? 'selected' : ''}>B</option>
+                </select>
+            </td>
+            <td><input type="number" min="0" value="${team.played}" data-field="played" data-team-id="${team.id}"></td>
+            <td><input type="number" min="0" value="${team.goals_scored}" data-field="goals_scored" data-team-id="${team.id}"></td>
+            <td><input type="number" min="0" value="${team.goals_conceded}" data-field="goals_conceded" data-team-id="${team.id}"></td>
+            <td>${gd}</td>
+            <td><input type="number" min="0" value="${team.points}" data-field="points" data-team-id="${team.id}"></td>
+            <td><button type="button" data-action="save" data-team-id="${team.id}">Submit</button></td>
+            <td><button type="button" data-action="delete" data-team-id="${team.id}">Remove</button></td>
+        `;
+
+        row.querySelector('[data-action="save"]').addEventListener('click', async function () {
+            await saveTeamRow(team.id);
+        });
+
+        row.querySelector('[data-action="delete"]').addEventListener('click', async function () {
+            await deleteTeam(team.id, team.team_name);
+        });
+
+        return row;
+    }
+
     function refreshTables() {
         const groupA = document.getElementById('groupA');
         const groupB = document.getElementById('groupB');
         groupA.innerHTML = '';
         groupB.innerHTML = '';
 
-        const sorted = [...teams].sort((a, b) => {
-            if (a.team_group !== b.team_group) {
-                return a.team_group.localeCompare(b.team_group);
-            }
-            const pointDiff = Number(b.points || 0) - Number(a.points || 0);
-            if (pointDiff !== 0) {
-                return pointDiff;
-            }
-            const gdA = Number(a.goals_scored || 0) - Number(a.goals_conceded || 0);
-            const gdB = Number(b.goals_scored || 0) - Number(b.goals_conceded || 0);
-            if (gdB !== gdA) {
-                return gdB - gdA;
-            }
-            return String(a.team_name).localeCompare(String(b.team_name));
-        });
+        const groupARows = sortedTeamsByGroup(teams, 'A');
+        const groupBRows = sortedTeamsByGroup(teams, 'B');
 
-        sorted.forEach((team) => {
-            const gd = Number(team.goals_scored || 0) - Number(team.goals_conceded || 0);
-            const row = document.createElement('tr');
-            row.innerHTML = `
-                <td>${team.team_name}</td>
-                <td>
-                    <select data-field="team_group" data-team-id="${team.id}">
-                        <option value="A" ${team.team_group === 'A' ? 'selected' : ''}>A</option>
-                        <option value="B" ${team.team_group === 'B' ? 'selected' : ''}>B</option>
-                    </select>
-                </td>
-                <td><input type="number" min="0" value="${team.played}" data-field="played" data-team-id="${team.id}"></td>
-                <td><input type="number" min="0" value="${team.goals_scored}" data-field="goals_scored" data-team-id="${team.id}"></td>
-                <td><input type="number" min="0" value="${team.goals_conceded}" data-field="goals_conceded" data-team-id="${team.id}"></td>
-                <td>${gd}</td>
-                <td><input type="number" min="0" value="${team.points}" data-field="points" data-team-id="${team.id}"></td>
-                <td>
-                    <button type="button" data-action="save" data-team-id="${team.id}">Save</button>
-                    <button type="button" data-action="delete" data-team-id="${team.id}">Delete</button>
-                </td>
-            `;
-
-            row.querySelector('[data-action="save"]').addEventListener('click', async function () {
-                await saveTeamRow(team.id);
-            });
-
-            row.querySelector('[data-action="delete"]').addEventListener('click', async function () {
-                await deleteTeam(team.id, team.team_name);
-            });
-
-            if (team.team_group === 'A') {
-                groupA.appendChild(row);
-            } else {
-                groupB.appendChild(row);
-            }
-        });
+        groupARows.forEach((team, index) => groupA.appendChild(buildRow(team, index + 1)));
+        groupBRows.forEach((team, index) => groupB.appendChild(buildRow(team, index + 1)));
     }
 
     async function loadTeams() {
@@ -191,17 +227,18 @@
         refreshTables();
     }
 
-    function getRowValue(teamId, field) {
-        const element = document.querySelector(`[data-field="${field}"][data-team-id="${teamId}"]`);
-        return element ? element.value : null;
-    }
-
     async function saveTeamRow(teamId) {
+        const teamName = String(getRowValue(teamId, 'team_name') || '').trim();
         const teamGroup = getRowValue(teamId, 'team_group');
         const played = Number(getRowValue(teamId, 'played'));
         const goalsScored = Number(getRowValue(teamId, 'goals_scored'));
         const goalsConceded = Number(getRowValue(teamId, 'goals_conceded'));
         const points = Number(getRowValue(teamId, 'points'));
+
+        if (!teamName) {
+            showStatus('Team name is required.', true);
+            return;
+        }
 
         if ([played, goalsScored, goalsConceded, points].some((v) => Number.isNaN(v) || v < 0)) {
             showStatus('Stats must be numbers 0 or greater.', true);
@@ -209,9 +246,10 @@
         }
 
         try {
-            const { data, error } = await client.rpc('admin_update_team_details', {
+            const { data, error } = await client.rpc('admin_update_team_row', {
                 p_session_token: adminSessionToken,
                 p_team_id: Number(teamId),
+                p_team_name: teamName,
                 p_team_group: teamGroup,
                 p_played: played,
                 p_goals_scored: goalsScored,
@@ -229,11 +267,11 @@
                 return;
             }
 
-            showStatus('Team row updated.', false);
+            showStatus('Row submitted.', false);
             await loadTeams();
         } catch (error) {
             console.error('Save team row failed:', error);
-            showStatus('Could not save this row.', true);
+            showStatus('Could not submit this row.', true);
         }
     }
 
@@ -258,19 +296,13 @@
                 return;
             }
 
-            showStatus('Team deleted.', false);
+            showStatus('Team removed.', false);
             await loadTeams();
         } catch (error) {
             console.error('Delete team failed:', error);
-            showStatus('Could not delete team.', true);
+            showStatus('Could not remove team.', true);
         }
     }
-
-    toggleGroupEditor.addEventListener('click', function () {
-        const isClosed = groupEditor.style.display === 'none';
-        groupEditor.style.display = isClosed ? 'block' : 'none';
-        toggleGroupEditor.textContent = isClosed ? 'Hide Editor' : 'Show Editor';
-    });
 
     document.getElementById('addTeamForm').addEventListener('submit', async function (event) {
         event.preventDefault();
@@ -282,47 +314,62 @@
         const goalsConceded = Number(document.getElementById('teamGoalsConceded').value);
         const points = Number(document.getElementById('teamPoints').value);
 
+        if (!teamName) {
+            showStatus('Team name is required.', true);
+            return;
+        }
+
         if ([played, goalsScored, goalsConceded, points].some((v) => Number.isNaN(v) || v < 0)) {
             showStatus('Stats must be numbers 0 or greater.', true);
             return;
         }
 
         try {
-            const { data, error } = await client.rpc('admin_add_team', {
+            const created = await client.rpc('admin_add_team', {
                 p_session_token: adminSessionToken,
                 p_team_name: teamName,
                 p_team_group: teamGroup
             });
 
-            if (error) {
-                throw error;
+            if (created.error) {
+                throw created.error;
             }
 
-            const result = Array.isArray(data) ? data[0] : data;
-            if (!result || result.ok !== true) {
-                showStatus(result ? result.message : 'TEAM_ADD_FAILED', true);
+            const createResult = Array.isArray(created.data) ? created.data[0] : created.data;
+            if (!createResult || createResult.ok !== true) {
+                showStatus(createResult ? createResult.message : 'TEAM_ADD_FAILED', true);
                 return;
+            }
+
+            const allTeams = await client.rpc('admin_list_teams', { p_session_token: adminSessionToken });
+            if (allTeams.error) {
+                throw allTeams.error;
+            }
+
+            const newTeam = (allTeams.data || []).find((t) => String(t.team_name).toLowerCase() === teamName.toLowerCase());
+            if (!newTeam) {
+                showStatus('Team created but could not load new row.', true);
+                await loadTeams();
+                return;
+            }
+
+            const updated = await client.rpc('admin_update_team_row', {
+                p_session_token: adminSessionToken,
+                p_team_id: Number(newTeam.id),
+                p_team_name: teamName,
+                p_team_group: teamGroup,
+                p_played: played,
+                p_goals_scored: goalsScored,
+                p_goals_conceded: goalsConceded,
+                p_points: points
+            });
+
+            if (updated.error) {
+                throw updated.error;
             }
 
             showStatus('Team added.', false);
             document.getElementById('addTeamForm').reset();
-
-            const allTeams = await client.rpc('admin_list_teams', { p_session_token: adminSessionToken });
-            if (!allTeams.error) {
-                const created = (allTeams.data || []).find((t) => String(t.team_name).toLowerCase() === teamName.toLowerCase());
-                if (created) {
-                    await client.rpc('admin_update_team_details', {
-                        p_session_token: adminSessionToken,
-                        p_team_id: Number(created.id),
-                        p_team_group: teamGroup,
-                        p_played: played,
-                        p_goals_scored: goalsScored,
-                        p_goals_conceded: goalsConceded,
-                        p_points: points
-                    });
-                }
-            }
-
             await loadTeams();
         } catch (error) {
             console.error('Add team failed:', error);
